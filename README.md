@@ -14,5 +14,4 @@ frequencies and then displayed
 - [4] for plotting the runtime graphs for the report
 
 **image (optional):**
-- filename of the image we wish to take the DFT of. (Default: the file name
-of the image given to you for the assignment)
+- filename of the image we wish to take the DFT of. 
