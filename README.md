@@ -3,7 +3,7 @@
 ## Calling syntax
 
 ``` bash
-python fft.py [-m mode] [-i image]
+python3 fft.py [-m mode] [-i image]
 ```
 
 **mode (optional):**
