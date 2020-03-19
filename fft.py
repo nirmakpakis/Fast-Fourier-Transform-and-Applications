@@ -6,7 +6,7 @@ import matplotlib.image as image
 from scipy import sparse
 import time
 
-# Get Image Name
+# Helper functions
 
 
 def getImageString():
@@ -21,8 +21,6 @@ def getImageString():
                 exit(1)
     return image
 
-# Get Mode Number
-
 
 def getModeNumber():
     for i in range(len(sys.argv)):
@@ -35,8 +33,6 @@ def getModeNumber():
     return int(mode)
 
 
-# Pad Image
-
 def padImage(image):
     result = np.zeros((next_power_of_2(
         image.shape[0]), next_power_of_2(image.shape[1])))
@@ -48,7 +44,70 @@ def next_power_of_2(x):
     return 1 if x == 0 else 2**(x - 1).bit_length()
 
 
+def denoiseImage(image):
+    img = fft_2D(padImage(image))
+    p = 0.10
+    r = len(img)
+    c = len(img[0])
+    img[int(r*p):int(r*(1-p))] = 0
+    img[:, int(c*p):int(c*(1-p))] = 0
+    return np.abs(ifft_2D(img))
+
+
+def compress(image, per):
+    img = fft_2D(padImage(image))
+    r, c = image.shape
+    p = (1-per)/4
+    img[int(r*p):int(r*(1-p))] = 0
+    img[:, int(c*p):int(c*(1-p))] = 0
+    print("Number of non-zero elements in %" +
+          str(per*100) + " compressed FFT:")
+    print(np.count_nonzero(img))
+    # Save image
+    outputName = str(int(per*100)) + "%CompressedFFT"
+    s_img = sparse.csr_matrix(img)
+    sparse.save_npz(outputName, s_img)
+    return np.abs(ifft_2D(img))
+
+
+def crop(originalImage, compressedImage):
+    image = compressedImage[0:len(
+        originalImage), 0:len(originalImage[0])]
+    return image
+
+
+def Average(lst):
+    return sum(lst) / len(lst)
+
+
+def plotTC_1D(f_2d, type):
+    aName = "Naive Discrete Fourier Transform" if type == "naive" else "Fast Fourier Transform"
+    x = []
+    y = []
+    for i in [2**6, 2**8]:
+        doubleArray = np.random.random((i, i))
+        timeArray = []
+        for k in range(1, 10):
+            start = time.perf_counter()
+            f_2d(doubleArray)
+            end = time.perf_counter()
+            timeArray.append(end-start)
+        x.append(i)
+        y.append(Average(timeArray))
+        print("The avarage time it takes " + aName +
+              " algorithm given " + str(i) + " input size is: ")
+        print(Average(timeArray))
+        print("The variance of " + aName +
+              " algorithm given " + str(i) + " input size is: ")
+        print(np.var(timeArray))
+    p1 = plt.plot(x, y, label=type)
+    plt.xlabel('Problem Size')
+    plt.ylabel('Seconds')
+    plt.legend()
+
+
 # 1D array
+
 def naiveDFT_1D(x):
     x = np.asarray(x, dtype=complex)
     N = len(x)
@@ -173,16 +232,6 @@ def modeTwo():
     plt.show(block=True)
 
 
-def denoiseImage(image):
-    img = fft_2D(padImage(image))
-    p = 0.10
-    r = len(img)
-    c = len(img[0])
-    img[int(r*p):int(r*(1-p))] = 0
-    img[:, int(c*p):int(c*(1-p))] = 0
-    return np.abs(ifft_2D(img))
-
-
 def modeThree():
     # create a template for 2 images
     f = plt.figure()
@@ -226,55 +275,26 @@ def modeThree():
     plt.show(block=True)
 
 
-def compress(image, per):
-    img = fft_2D(padImage(image))
-    r, c = image.shape
-    p = (1-per)/4
-    img[int(r*p):int(r*(1-p))] = 0
-    img[:, int(c*p):int(c*(1-p))] = 0
-    print("Number of non-zero elements in %" +
-          str(per*100) + " compressed FFT:")
-    print(np.count_nonzero(img))
-    # Save image
-    outputName = str(int(per*100)) + "%CompressedFFT"
-    s_img = sparse.csr_matrix(img)
-    sparse.save_npz(outputName, s_img)
-    return np.abs(ifft_2D(img))
+def modeFour():
+    plotTC_1D(naiveDFT_2D, "naive")
+    plotTC_1D(fft_2D, "fast")
+    plt.show()
 
 
-def crop(originalImage, compressedImage):
-    image = compressedImage[0:len(
-        originalImage), 0:len(originalImage[0])]
-    return image
+# Main
+
+def main():
+    mode = getModeNumber()
+    if(mode == 1):
+        modeOne()
+    elif(mode == 2):
+        modeTwo()
+    elif(mode == 3):
+        modeThree()
+    elif(mode == 4):
+        modeFour()
+    else:
+        modeOne()
 
 
-def Average(lst):
-    return sum(lst) / len(lst)
-
-
-def plotTC_1D(f_2d, type):
-    algorithmName = "Naive Discrete Fourier Transform" if type == "naive" else "Fast Fourier Transform"
-    x = []
-    y = []
-    for i in [2**6, 2**8, 2**10]:
-        doubleArray = np.random.random((i, i))
-        timeArray = []
-        for k in range(1, 10):
-            start = time.perf_counter()
-            f_2d(doubleArray)
-            end = time.perf_counter()
-            timeArray.append(end-start)
-        x.append(i)
-        y.append(Average(timeArray))
-        print("The avarage time it takes " + algorithmName +
-              " algorithm given " + str(i) + " input size is: ")
-        print(Average(timeArray))
-        print("The variance of " + algorithmName +
-              " algorithm given " + str(i) + " input size is: ")
-        print(np.var(timeArray))
-    p1 = plt.plot(x, y, label= type)
-
-
-plotTC_1D(naiveDFT_2D, "naive")
-plotTC_1D(fft_2D, "fast")
-plt.show()
+main()
