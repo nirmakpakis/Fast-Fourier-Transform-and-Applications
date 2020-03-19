@@ -2,9 +2,12 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-
+import matplotlib.image as image
+from scipy import sparse
+import time
 
 # Get Image Name
+
 
 def getImageString():
     for i in range(len(sys.argv)):
@@ -102,6 +105,16 @@ def ifft_1D(x):
 
 # 2D array
 
+def naiveDFT_2D(a):
+    x = np.zeros(a.shape, dtype=complex)
+    M, N = a.shape
+    for i in range(N):
+        x[:, i] = naiveDFT_1D(a[:, i])
+    for i in range(M):
+        x[i, :] = naiveDFT_1D(x[i, :])
+    return x
+
+
 def fft_2D(a):
     x = np.zeros(a.shape, dtype=complex)
     M, N = a.shape
@@ -161,13 +174,13 @@ def modeTwo():
 
 
 def denoiseImage(image):
-    fftImage = fft_2D(padImage(image))
-    keep_fraction = 0.05
-    r, c = fftImage.shape
-    fftImage[int(r*keep_fraction):int(r*(1-keep_fraction))] = 0
-    fftImage[:, int(c*keep_fraction):int(c*(1-keep_fraction))] = 0
-    filteredImage = np.abs(ifft_2D(fftImage))
-    return filteredImage
+    img = fft_2D(padImage(image))
+    p = 0.10
+    r = len(img)
+    c = len(img[0])
+    img[int(r*p):int(r*(1-p))] = 0
+    img[:, int(c*p):int(c*(1-p))] = 0
+    return np.abs(ifft_2D(img))
 
 
 def modeThree():
@@ -178,43 +191,90 @@ def modeThree():
     originalImage = plt.imread(getImageString()).astype(float)
     plt.title('Original Image')
     plt.imshow(originalImage, cmap="gray")
+    compress(originalImage, 0)
     # add image
     f.add_subplot(2, 3, 2)
-    plt.title('%15 Trunctated')
-    image = compress(originalImage, 15)
-    plt.imshow(image, cmap='gray')
+    plt.title('%20 Trunctated')
+    compressedImage1 = compress(originalImage, 0.2)
+    image1 = crop(originalImage, compressedImage1)
+    plt.imshow(image1, cmap='gray')
     # add image
     f.add_subplot(2, 3, 3)
-    plt.title('%30 Trunctated')
-    image = compress(originalImage, 30)
-    plt.imshow(image, cmap='gray')
+    plt.title('%44 Trunctated')
+    compressedImage2 = compress(originalImage, 0.44)
+    image2 = crop(originalImage, compressedImage2)
+    plt.imshow(image2, cmap='gray')
     # add image
     f.add_subplot(2, 3, 4)
-    plt.title('%50 Trunctated')
-    image = compress(originalImage, 50)
-    plt.imshow(image, cmap='gray')
+    plt.title('%58 Trunctated')
+    compressedImage3 = compress(originalImage, 0.58)
+    image3 = crop(originalImage, compressedImage3)
+    plt.imshow(image3, cmap='gray')
     # add image
     f.add_subplot(2, 3, 5)
-    plt.title('%75 Trunctated')
-    image = compress(originalImage, 75)
-    plt.imshow(image, cmap='gray')
+    plt.title('%76 Trunctated')
+    comressedImage4 = compress(originalImage, 0.76)
+    image4 = crop(originalImage, comressedImage4)
+    plt.imshow(image4, cmap='gray')
     # add image
     f.add_subplot(2, 3, 6)
     plt.title('%95 Trunctated')
-    image = compress(originalImage, 95)
-    plt.imshow(image, cmap='gray')
+    compressedImage5 = compress(originalImage, 0.95)
+    image5 = crop(originalImage, compressedImage5)
+    plt.imshow(image5, cmap='gray')
     # print image
     plt.show(block=True)
 
 
-def compress(image, percentage):
-    p = np.percentile(image, percentage)
+def compress(image, per):
+    img = fft_2D(padImage(image))
     r, c = image.shape
-    for i in range(r):
-        for j in range(c):
-            if image[i][j] < p:
-                image[i][j] = 0
+    p = (1-per)/4
+    img[int(r*p):int(r*(1-p))] = 0
+    img[:, int(c*p):int(c*(1-p))] = 0
+    print("Number of non-zero elements in %" +
+          str(per*100) + " compressed FFT:")
+    print(np.count_nonzero(img))
+    # Save image
+    outputName = str(int(per*100)) + "%CompressedFFT"
+    s_img = sparse.csr_matrix(img)
+    sparse.save_npz(outputName, s_img)
+    return np.abs(ifft_2D(img))
+
+
+def crop(originalImage, compressedImage):
+    image = compressedImage[0:len(
+        originalImage), 0:len(originalImage[0])]
     return image
 
 
-modeThree()
+def Average(lst):
+    return sum(lst) / len(lst)
+
+
+def plotTC_1D(f_2d, type):
+    algorithmName = "Naive Discrete Fourier Transform" if type == "naive" else "Fast Fourier Transform"
+    x = []
+    y = []
+    for i in [2**6, 2**8, 2**10]:
+        doubleArray = np.random.random((i, i))
+        timeArray = []
+        for k in range(1, 10):
+            start = time.perf_counter()
+            f_2d(doubleArray)
+            end = time.perf_counter()
+            timeArray.append(end-start)
+        x.append(i)
+        y.append(Average(timeArray))
+        print("The avarage time it takes " + algorithmName +
+              " algorithm given " + str(i) + " input size is: ")
+        print(Average(timeArray))
+        print("The variance of " + algorithmName +
+              " algorithm given " + str(i) + " input size is: ")
+        print(np.var(timeArray))
+    p1 = plt.plot(x, y, label= type)
+
+
+plotTC_1D(naiveDFT_2D, "naive")
+plotTC_1D(fft_2D, "fast")
+plt.show()
